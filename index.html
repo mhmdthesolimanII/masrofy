@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مصروفي</title>
+<meta name="theme-color" content="#0E7556">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="مصروفي">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* Layout: a pocket ledger. One column on phones; on wide screens the entry form + history sit beside the month summary. */
+:root {
+  --bg: #EEF3F0;
+  --surface: #FFFFFF;
+  --surface-2: #F5F8F6;
+  --ink: #13211B;
+  --muted: #5C6E66;
+  --line: #D7E2DC;
+  --accent: #0E7556;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DCEFE7;
+  --spend: #B8402B;
+  --spend-soft: #F7E3DE;
+  --warn: #9A6A00;
+  --warn-soft: #F8EDCF;
+  --c-food: #2F8F6B; --c-meat: #B8402B; --c-move: #2C6DB5; --c-home: #7A5BB0;
+  --c-health: #C2558A; --c-social: #C07A12; --c-self: #3E8C99; --c-other: #7B8780; --c-adj: #9AA59F;
+  --font-display: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1512; --surface: #16201C; --surface-2: #1C2823; --ink: #E4EEE9; --muted: #93A69D; --line: #2A3A33;
+    --accent: #45C496; --accent-ink: #062418; --accent-soft: #173A2E; --spend: #FF8A72; --spend-soft: #3A221D;
+    --warn: #E8B84A; --warn-soft: #3A3018;
+    --c-food: #4CC497; --c-meat: #FF8A72; --c-move: #6FA8EE; --c-home: #B096E6;
+    --c-health: #EE8BB8; --c-social: #E8B04A; --c-self: #6CC3D0; --c-other: #A3B0A9; --c-adj: #6E7C75;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1512; --surface: #16201C; --surface-2: #1C2823; --ink: #E4EEE9; --muted: #93A69D; --line: #2A3A33;
+  --accent: #45C496; --accent-ink: #062418; --accent-soft: #173A2E; --spend: #FF8A72; --spend-soft: #3A221D;
+  --warn: #E8B84A; --warn-soft: #3A3018;
+  --c-food: #4CC497; --c-meat: #FF8A72; --c-move: #6FA8EE; --c-home: #B096E6;
+  --c-health: #EE8BB8; --c-social: #E8B04A; --c-self: #6CC3D0; --c-other: #A3B0A9; --c-adj: #6E7C75;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  margin: 0;
+}
+.app { max-width: 1040px; margin: 0 auto; display: grid; gap: 16px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+header.top h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; margin: 0; letter-spacing: 0; }
+.status { font-size: 13px; color: var(--muted); }
+.status.bad { color: var(--warn); }
+
+.hero { background: var(--accent); color: var(--accent-ink); border-radius: 20px; padding: 22px 22px 18px; display: grid; gap: 14px; }
+.hero .lbl { font-size: 14px; opacity: .85; }
+.hero .bal { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: clamp(40px, 9vw, 60px); line-height: 1.05; direction: ltr; text-align: right; }
+.hero .bal small { font-family: var(--font-body); font-size: .4em; margin-inline-start: 6px; opacity: .85; }
+.hero-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.pill { background: color-mix(in srgb, var(--accent-ink) 14%, transparent); border-radius: 999px; padding: 6px 12px; font-size: 13.5px; }
+.pill b { font-family: var(--font-num); font-weight: 500; }
+.pill.alert { background: var(--warn-soft); color: var(--warn); }
+
+.cols { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 860px) { .cols { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; } }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-weight: 500; font-size: 19px; margin: 0; }
+.card .sub { color: var(--muted); font-size: 13.5px; margin: -8px 0 0; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 15px var(--font-body); padding: 9px; border-radius: 9px; cursor: pointer; }
+.seg button[aria-pressed="true"].out { background: var(--spend); color: #fff; }
+.seg button[aria-pressed="true"].in { background: var(--accent); color: var(--accent-ink); }
+
+label.f { display: grid; gap: 6px; font-size: 13.5px; color: var(--muted); }
+input, select { font: 500 16px var(--font-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; min-width: 0; }
+input.amt { font-family: var(--font-num); font-size: 24px; direction: ltr; text-align: right; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 500 14px var(--font-body); cursor: pointer; }
+.chip .dot, .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dc, var(--c-other)); flex: none; }
+.chip[aria-pressed="true"] { border-color: var(--dc); background: color-mix(in srgb, var(--dc) 16%, var(--surface)); }
+
+.btn { border: 0; border-radius: 11px; padding: 12px 16px; font: 600 16px var(--font-body); cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+.btn.out { background: var(--spend); color: #fff; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-size: 14px; padding: 8px 12px; }
+.btn.small { font-size: 13.5px; padding: 7px 11px; border-radius: 9px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.msg { font-size: 13.5px; color: var(--spend); min-height: 0; }
+.msg:empty { display: none; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stat { background: var(--surface-2); border-radius: 11px; padding: 10px 12px; display: grid; gap: 2px; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.stat b { font-family: var(--font-num); font-weight: 500; font-size: 18px; font-variant-numeric: tabular-nums; }
+
+.bars { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 14px; }
+.bar-row .name { display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track { height: 10px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.fill { height: 100%; background: var(--dc); border-radius: 99px; }
+.bar-row .v { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 13.5px; color: var(--muted); }
+
+.plans { display: grid; gap: 8px; }
+.plan { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.plan:last-child { border-bottom: 0; }
+.plan .n { overflow-wrap: anywhere; }
+.plan .a { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.plan-actions { display: flex; gap: 6px; }
+.plan-form { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+@media (max-width: 560px) { .plan-form { grid-template-columns: 1fr 1fr; } }
+
+.day { display: grid; gap: 4px; }
+.day h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 8px 0 2px; display: flex; justify-content: space-between; }
+.tx { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.tx .t { display: grid; min-width: 0; }
+.tx .t b { font-weight: 500; overflow-wrap: anywhere; }
+.tx .t span { font-size: 12.5px; color: var(--muted); }
+[hidden] { display: none !important; }
+.tx .a { font-family: var(--font-num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.tx .a.out { color: var(--spend); }
+.tx .a.in { color: var(--accent); }
+.x { border: 0; background: transparent; color: var(--muted); font: 500 13px var(--font-body); cursor: pointer; padding: 4px 6px; border-radius: 7px; }
+.x.confirm { background: var(--spend-soft); color: var(--spend); }
+.empty { color: var(--muted); font-size: 14px; }
+.onboard { border: 2px dashed var(--accent); background: var(--accent-soft); }
+.onboard-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.onboard-row input { flex: 1 1 180px; }
+details.set summary { cursor: pointer; font-weight: 600; }
+details.set[open] summary { margin-bottom: 12px; }
+@media (prefers-reduced-motion: no-preference) { .fill { transition: width .35s ease; } }
+</style>
+</head>
+<body>
+
+<div class="app" dir="rtl" lang="ar">
+  <header class="top">
+    <h1>مصروفي</h1>
+    <span class="status" id="status">بيحمّل…</span>
+  </header>
+
+  <section class="hero" aria-live="polite" id="hero"></section>
+
+  <section class="card onboard" id="onboard" hidden>
+    <h2>معاك كام دلوقتي؟</h2>
+    <p class="sub">اكتب الفلوس اللي معاك النهارده، وبعد كده سجّل كل حاجة بتصرفها.</p>
+    <div class="onboard-row">
+      <input id="startAmt" class="amt" inputmode="decimal" placeholder="0" aria-label="الرصيد الحالي">
+      <button class="btn" id="startBtn">ابدأ</button>
+    </div>
+    <div class="msg" id="startMsg"></div>
+  </section>
+
+  <div class="cols">
+    <div class="stack">
+      <section class="card" id="entry">
+        <div class="seg" role="group" aria-label="نوع العملية">
+          <button class="out" id="kOut" aria-pressed="true">صرفت</button>
+          <button class="in" id="kIn" aria-pressed="false">دخلي فلوس</button>
+        </div>
+        <label class="f">المبلغ (جنيه)
+          <input id="amt" class="amt" inputmode="decimal" placeholder="0" autocomplete="off">
+        </label>
+        <div class="chips" id="cats" role="group" aria-label="البند"></div>
+        <div class="row2">
+          <label class="f">في إيه بالظبط؟ (اختياري)
+            <input id="note" placeholder="مثلًا: زبادي جهينة" autocomplete="off">
+          </label>
+          <label class="f">التاريخ
+            <input id="date" type="date">
+          </label>
+        </div>
+        <button class="btn out" id="save">سجّل المصروف</button>
+        <div class="msg" id="saveMsg"></div>
+      </section>
+
+      <section class="card">
+        <h2>اللي اتسجل</h2>
+        <div id="history"></div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="card">
+        <h2 id="cycleTitle">الشهر ده</h2>
+        <div class="stats" id="stats"></div>
+        <div class="bars" id="bars"></div>
+      </section>
+
+      <section class="card">
+        <h2>مصاريف جاية</h2>
+        <p class="sub">حاجات لسه هتدفعها قبل يوم القبض. بتتخصم من "تقدر تصرف في اليوم".</p>
+        <div class="plans" id="plans"></div>
+        <div class="plan-form">
+          <input id="pName" placeholder="البند (مثلًا: اللحمة)" aria-label="اسم المصروف الجاي">
+          <input id="pAmt" class="num" inputmode="decimal" placeholder="المبلغ" aria-label="مبلغ المصروف الجاي">
+          <select id="pCat" aria-label="بند المصروف الجاي"></select>
+          <button class="btn small" id="pAdd">ضيف</button>
+        </div>
+        <div class="msg" id="planMsg"></div>
+      </section>
+
+      <section class="card">
+        <details class="set">
+          <summary>الإعدادات</summary>
+          <div style="display:grid; gap:12px">
+            <label class="f">يوم القبض (أول يوم في شهرك)
+              <select id="payday"></select>
+            </label>
+            <label class="f">الرصيد مش مظبوط؟ اكتب اللي معاك فعلًا
+              <div class="onboard-row">
+                <input id="fixAmt" class="amt" inputmode="decimal" placeholder="0">
+                <button class="btn ghost" id="fixBtn">ظبّط الرصيد</button>
+              </div>
+            </label>
+            <div class="msg" id="fixMsg"></div>
+            <div style="display:grid; gap:8px; border-top:1px solid var(--line); padding-top:12px">
+              <b>نسخة احتياطية</b>
+              <span class="empty">بياناتك متحفظة على الموبايل ده بس. نزّل نسخة كل فترة، وابعتها لنفسك على واتساب أو احفظها في Files.</span>
+              <div class="onboard-row">
+                <button class="btn ghost" id="expBtn">نزّل نسخة احتياطية</button>
+                <label class="btn ghost" for="impFile" style="display:inline-flex;align-items:center">رجّع من نسخة</label>
+                <input id="impFile" type="file" accept="application/json,.json" hidden>
+              </div>
+              <div class="msg" id="bkMsg"></div>
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const OUT_CATS = [
+    { k: "food", n: "أكل وبقالة", c: "--c-food" },
+    { k: "meat", n: "لحوم وفراخ", c: "--c-meat" },
+    { k: "move", n: "مواصلات", c: "--c-move" },
+    { k: "home", n: "البيت والفواتير", c: "--c-home" },
+    { k: "health", n: "صحة ودوا", c: "--c-health" },
+    { k: "social", n: "هدايا وعزومات", c: "--c-social" },
+    { k: "self", n: "لبس وحاجات شخصية", c: "--c-self" },
+    { k: "other", n: "تاني", c: "--c-other" }
+  ];
+  const IN_CATS = [
+    { k: "salary", n: "مرتب", c: "--c-food" },
+    { k: "extra", n: "فلوس إضافية", c: "--c-move" },
+    { k: "other_in", n: "تاني", c: "--c-other" }
+  ];
+  const SYS = { start: { n: "رصيد البداية", c: "--c-adj" }, adj: { n: "تظبيط الرصيد", c: "--c-adj" } };
+  const ALL = {}; [...OUT_CATS, ...IN_CATS].forEach(c => ALL[c.k] = c); Object.assign(ALL, SYS);
+
+  const S = { tx: [], settings: { payday: 26, plans: [] }, loaded: false, mode: "loading", kind: "out", cat: "food", confirmDel: null, showAll: false, readOnly: false };
+  let store = null;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  const fmt = n => (Math.round(n * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const parseAmt = v => { const t = String(v).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[,،\s]/g, "").replace("٫", "."); const n = Number(t); return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null; };
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const sod = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  /* ---------- stores ---------- */
+  function localStore() {
+    const KEY = "masrofy-v1";
+    let data = { tx: [], settings: { payday: 26, plans: [] } };
+    try { const raw = localStorage.getItem(KEY); if (raw) data = JSON.parse(raw); } catch (e) {}
+    const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} };
+    const emit = () => { S.tx = [...data.tx].sort((a, b) => b.at.localeCompare(a.at)); S.settings = { payday: 26, plans: [], ...data.settings }; S.loaded = true; render(); };
+    setTimeout(emit, 0);
+    return {
+      async addTx(t) { data.tx.push({ id: uid(), ...t }); persist(); emit(); },
+      async delTx(id) { data.tx = data.tx.filter(t => t.id !== id); persist(); emit(); },
+      async saveSettings(s) { data.settings = s; persist(); emit(); },
+      exportData() { return JSON.parse(JSON.stringify(data)); },
+      async importData(obj) {
+        if (!obj || !Array.isArray(obj.tx)) throw new Error("الملف ده مش نسخة احتياطية من مصروفي");
+        data = { tx: obj.tx.filter(t => t && t.id && t.at && (t.kind === "in" || t.kind === "out") && Number(t.amount) > 0), settings: { payday: 26, plans: [], ...(obj.settings || {}) } };
+        persist(); emit();
+      }
+    };
+  }
+
+  function setStatus(t, bad) { const el = $("status"); el.textContent = t; el.classList.toggle("bad", !!bad); }
+
+  async function init() {
+    render();
+    S.mode = "local"; store = localStore();
+    setStatus(navigator.onLine ? "متحفظ على الموبايل ده" : "شغال من غير نت");
+    window.addEventListener("online", () => setStatus("متحفظ على الموبايل ده"));
+    window.addEventListener("offline", () => setStatus("شغال من غير نت"));
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+    if ("serviceWorker" in navigator) { try { await navigator.serviceWorker.register("sw.js"); } catch (e) {} }
+  }
+
+  /* ---------- derived numbers ---------- */
+  function cycle(payday) {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    const pd = (yy, mm) => Math.min(payday, new Date(yy, mm + 1, 0).getDate());
+    const afterThis = d >= pd(y, m);
+    const start = afterThis ? new Date(y, m, pd(y, m)) : new Date(y, m - 1, pd(y, m - 1));
+    const next = afterThis ? new Date(y, m + 1, pd(y, m + 1)) : new Date(y, m, pd(y, m));
+    const daysLeft = Math.max(1, Math.round((next - sod(now)) / 864e5));
+    return { start, next, daysLeft };
+  }
+  function numbers() {
+    let bal = 0; S.tx.forEach(t => { bal += (t.kind === "in" ? 1 : -1) * (Number(t.amount) || 0); });
+    const cy = cycle(Number(S.settings.payday) || 26);
+    const startIso = cy.start.toISOString();
+    const todayIso = sod(new Date()).toISOString();
+    const outs = S.tx.filter(t => t.kind === "out" && t.cat !== "adj");
+    const spentCycle = outs.filter(t => t.at >= startIso).reduce((s, t) => s + Number(t.amount), 0);
+    const spentToday = outs.filter(t => t.at >= todayIso).reduce((s, t) => s + Number(t.amount), 0);
+    const byCat = {}; outs.filter(t => t.at >= startIso).forEach(t => byCat[t.cat] = (byCat[t.cat] || 0) + Number(t.amount));
+    const planned = (S.settings.plans || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const free = bal - planned;
+    return { bal, cy, spentCycle, spentToday, byCat, planned, free, perDay: free / cy.daysLeft };
+  }
+  const dayFmt = d => d.toLocaleDateString("ar-EG-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
+
+  /* ---------- render ---------- */
+  function render() {
+    const N = numbers();
+    const hasTx = S.tx.length > 0;
+    const nextLbl = N.cy.next.toLocaleDateString("ar-EG-u-nu-latn", { day: "numeric", month: "long" });
+    $("hero").innerHTML =
+      '<div class="lbl">معاك دلوقتي</div>' +
+      '<div class="bal">' + (S.loaded ? fmt(N.bal) : "—") + '<small>جنيه</small></div>' +
+      '<div class="hero-row">' +
+        (N.planned > 0 ? '<span class="pill">بعد المصاريف الجاية: <b>' + fmt(N.free) + '</b></span>' : "") +
+        (hasTx ? (N.free >= 0
+          ? '<span class="pill">تقدر تصرف في اليوم: <b>' + fmt(Math.floor(N.perDay)) + '</b> لحد ' + nextLbl + ' (' + N.cy.daysLeft + ' يوم)</span>'
+          : '<span class="pill alert">المصاريف الجاية أكتر من اللي معاك بـ <b>' + fmt(-N.free) + '</b></span>') : '<span class="pill">سجّل رصيدك الأول عشان أحسبلك</span>') +
+      '</div>';
+
+    $("onboard").hidden = !(S.loaded && !hasTx);
+
+    const cats = S.kind === "out" ? OUT_CATS : IN_CATS;
+    if (!cats.some(c => c.k === S.cat)) S.cat = cats[0].k;
+    $("cats").innerHTML = cats.map(c => '<button type="button" class="chip" style="--dc:var(' + c.c + ')" data-cat="' + c.k + '" aria-pressed="' + (S.cat === c.k) + '"><span class="dot"></span>' + c.n + '</button>').join("");
+    $("kOut").setAttribute("aria-pressed", S.kind === "out"); $("kIn").setAttribute("aria-pressed", S.kind === "in");
+    const sv = $("save"); sv.textContent = S.kind === "out" ? "سجّل المصروف" : "سجّل الفلوس اللي دخلت"; sv.className = "btn " + (S.kind === "out" ? "out" : ""); sv.disabled = S.readOnly || !store;
+
+    const startLbl = N.cy.start.toLocaleDateString("ar-EG-u-nu-latn", { day: "numeric", month: "long" });
+    $("cycleTitle").textContent = "من " + startLbl + " لحد " + nextLbl;
+    $("stats").innerHTML =
+      '<div class="stat"><span>صرفت النهارده</span><b>' + fmt(N.spentToday) + '</b></div>' +
+      '<div class="stat"><span>صرفت الشهر ده</span><b>' + fmt(N.spentCycle) + '</b></div>' +
+      '<div class="stat"><span>فاضل على القبض</span><b>' + N.cy.daysLeft + ' يوم</b></div>';
+    const catRows = Object.entries(N.byCat).sort((a, b) => b[1] - a[1]);
+    const max = catRows.length ? catRows[0][1] : 0;
+    $("bars").innerHTML = catRows.length ? catRows.map(([k, v]) => {
+      const c = ALL[k] || ALL.other;
+      return '<div class="bar-row" style="--dc:var(' + c.c + ')"><span class="name"><span class="dot"></span>' + c.n + '</span><div class="track"><div class="fill" style="width:' + (max ? Math.max(4, v / max * 100) : 0) + '%"></div></div><span class="v">' + fmt(v) + '</span></div>';
+    }).join("") : '<div class="empty">لما تسجّل مصاريف، هتشوف هنا فلوسك راحت فين بالبند.</div>';
+
+    const plans = S.settings.plans || [];
+    $("plans").innerHTML = plans.length ? plans.map(p => {
+      const c = ALL[p.cat] || ALL.other;
+      return '<div class="plan" style="--dc:var(' + c.c + ')"><span class="dot"></span><span class="n">' + esc(p.name) + '</span><span class="a">' + fmt(p.amount) + '</span><span class="plan-actions"><button class="btn small" data-pay="' + p.id + '">دفعته</button><button class="x" data-unplan="' + p.id + '">شيل</button></span></div>';
+    }).join("") + '<div class="plan"><span></span><b>المجموع</b><span class="a"><b>' + fmt(N.planned) + '</b></span><span></span></div>' : '<div class="empty">مفيش مصاريف جاية متسجلة.</div>';
+    if (!$("pCat").options.length) $("pCat").innerHTML = OUT_CATS.map(c => '<option value="' + c.k + '">' + c.n + '</option>').join("");
+    if (!$("payday").options.length) { let o = ""; for (let i = 1; i <= 31; i++) o += '<option value="' + i + '">' + i + '</option>'; $("payday").innerHTML = o; }
+    if (document.activeElement !== $("payday")) $("payday").value = String(S.settings.payday || 26);
+
+    if (!S.loaded) { $("history").innerHTML = '<div class="empty">بيحمّل…</div>'; return; }
+    if (!hasTx) { $("history").innerHTML = '<div class="empty">لسه مفيش حاجة. أول ما تسجّل مصروف هيظهر هنا.</div>'; return; }
+    const list = S.showAll ? S.tx : S.tx.slice(0, 40);
+    const groups = []; let cur = null;
+    const today = sod(new Date()), yest = new Date(today); yest.setDate(yest.getDate() - 1);
+    list.forEach(t => {
+      const d = sod(new Date(t.at)); const key = d.getTime();
+      if (!cur || cur.key !== key) { cur = { key, d, items: [], out: 0 }; groups.push(cur); }
+      cur.items.push(t); if (t.kind === "out" && t.cat !== "adj") cur.out += Number(t.amount);
+    });
+    $("history").innerHTML = groups.map(g => {
+      const lbl = g.key === today.getTime() ? "النهارده" : g.key === yest.getTime() ? "امبارح" : dayFmt(g.d);
+      return '<div class="day"><h3><span>' + lbl + '</span>' + (g.out ? '<span>صرفت <span class="num">' + fmt(g.out) + '</span></span>' : '') + '</h3>' +
+        g.items.map(t => {
+          const c = ALL[t.cat] || ALL.other;
+          const del = S.confirmDel === t.id ? '<button class="x confirm" data-del="' + t.id + '">امسح؟</button>' : '<button class="x" data-ask="' + t.id + '" aria-label="امسح">مسح</button>';
+          return '<div class="tx" style="--dc:var(' + c.c + ')"><span class="dot"></span><span class="t"><b>' + esc(t.note || c.n) + '</b>' + (t.note ? '<span>' + c.n + '</span>' : '') + '</span><span class="a ' + t.kind + '">' + (t.kind === "out" ? "−" : "+") + fmt(t.amount) + '</span>' + (S.readOnly ? '' : del) + '</div>';
+        }).join("") + '</div>';
+    }).join("") + (S.tx.length > 40 && !S.showAll ? '<button class="btn ghost" data-more="1">اعرض الكل (' + S.tx.length + ')</button>' : '');
+  }
+
+  /* ---------- actions ---------- */
+  async function run(btn, msgEl, fn) {
+    if (!store) return;
+    msgEl.textContent = ""; if (btn) btn.disabled = true;
+    try { await fn(); return true; } catch (e) { msgEl.textContent = e.message || "ماتسجلش. جرّب تاني."; return false; }
+    finally { if (btn) btn.disabled = S.readOnly; }
+  }
+  function atFor(dateStr) {
+    const now = new Date();
+    if (!dateStr || dateStr === todayStr()) return now.toISOString();
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+  }
+
+  $("kOut").onclick = () => { S.kind = "out"; render(); };
+  $("kIn").onclick = () => { S.kind = "in"; render(); };
+  $("cats").onclick = e => { const b = e.target.closest("[data-cat]"); if (b) { S.cat = b.dataset.cat; render(); } };
+  $("date").value = todayStr();
+
+  $("save").onclick = async () => {
+    const amt = parseAmt($("amt").value);
+    if (!amt) { $("saveMsg").textContent = "اكتب المبلغ بالأرقام، مثلًا 150"; $("amt").focus(); return; }
+    const ok = await run($("save"), $("saveMsg"), () => store.addTx({ kind: S.kind, amount: amt, cat: S.cat, note: $("note").value.trim().slice(0, 120), at: atFor($("date").value) }));
+    if (ok) { $("amt").value = ""; $("note").value = ""; $("date").value = todayStr(); $("amt").focus(); }
+  };
+  $("amt").addEventListener("keydown", e => { if (e.key === "Enter") $("save").click(); });
+  $("note").addEventListener("keydown", e => { if (e.key === "Enter") $("save").click(); });
+
+  $("startBtn").onclick = async () => {
+    const amt = parseAmt($("startAmt").value);
+    if (!amt) { $("startMsg").textContent = "اكتب المبلغ بالأرقام"; return; }
+    await run($("startBtn"), $("startMsg"), () => store.addTx({ kind: "in", amount: amt, cat: "start", note: "", at: new Date().toISOString() }));
+  };
+
+  $("fixBtn").onclick = async () => {
+    const raw = String($("fixAmt").value).trim();
+    const target = raw === "0" ? 0 : parseAmt(raw);
+    if (target === null) { $("fixMsg").textContent = "اكتب المبلغ بالأرقام"; return; }
+    const diff = Math.round((target - numbers().bal) * 100) / 100;
+    if (!diff) { $("fixMsg").textContent = "الرصيد مظبوط أصلًا"; return; }
+    const ok = await run($("fixBtn"), $("fixMsg"), () => store.addTx({ kind: diff > 0 ? "in" : "out", amount: Math.abs(diff), cat: "adj", note: "", at: new Date().toISOString() }));
+    if (ok) $("fixAmt").value = "";
+  };
+
+  $("payday").onchange = () => { const s = { ...S.settings, payday: Number($("payday").value) }; run(null, $("fixMsg"), () => store.saveSettings(s)); };
+
+  $("pAdd").onclick = async () => {
+    const name = $("pName").value.trim().slice(0, 60), amt = parseAmt($("pAmt").value);
+    if (!name || !amt) { $("planMsg").textContent = "اكتب اسم البند والمبلغ"; return; }
+    const s = { ...S.settings, plans: [...(S.settings.plans || []), { id: uid(), name, amount: amt, cat: $("pCat").value }] };
+    const ok = await run($("pAdd"), $("planMsg"), () => store.saveSettings(s));
+    if (ok) { $("pName").value = ""; $("pAmt").value = ""; }
+  };
+  $("plans").onclick = async e => {
+    const pay = e.target.closest("[data-pay]"), un = e.target.closest("[data-unplan]");
+    if (pay) {
+      const p = (S.settings.plans || []).find(x => x.id === pay.dataset.pay); if (!p) return;
+      await run(pay, $("planMsg"), async () => {
+        await store.addTx({ kind: "out", amount: Number(p.amount), cat: p.cat || "other", note: p.name, at: new Date().toISOString() });
+        await store.saveSettings({ ...S.settings, plans: (S.settings.plans || []).filter(x => x.id !== p.id) });
+      });
+    } else if (un) {
+      await run(un, $("planMsg"), () => store.saveSettings({ ...S.settings, plans: (S.settings.plans || []).filter(x => x.id !== un.dataset.unplan) }));
+    }
+  };
+
+  $("history").onclick = async e => {
+    const ask = e.target.closest("[data-ask]"), del = e.target.closest("[data-del]"), more = e.target.closest("[data-more]");
+    if (more) { S.showAll = true; render(); return; }
+    if (ask) { S.confirmDel = ask.dataset.ask; render(); clearTimeout(S._ct); S._ct = setTimeout(() => { S.confirmDel = null; render(); }, 4000); return; }
+    if (del) { const id = del.dataset.del; S.confirmDel = null; await run(null, $("saveMsg"), () => store.delTx(id)); }
+  };
+
+  $("expBtn").onclick = async () => {
+    $("bkMsg").textContent = "";
+    const d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    const name = "masrofy-backup-" + stamp + ".json";
+    const blob = new Blob([JSON.stringify({ app: "masrofy", v: 1, savedAt: d.toISOString(), ...store.exportData() }, null, 1)], { type: "application/json" });
+    try {
+      const file = new File([blob], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  };
+  $("impFile").onchange = async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    $("bkMsg").textContent = "";
+    try { const obj = JSON.parse(await f.text()); await store.importData(obj); $("bkMsg").style.color = "var(--accent)"; $("bkMsg").textContent = "رجعت " + S.tx.length + " عملية"; }
+    catch (err) { $("bkMsg").style.color = ""; $("bkMsg").textContent = err.message && err.message.startsWith("الملف") ? err.message : "مش قادر أقرا الملف ده"; }
+    e.target.value = "";
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>
